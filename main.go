@@ -32,7 +32,7 @@ func (s *Server) All(c *gin.Context) {
 		})
 		return
 	}
-	var todos []Todo
+	todos := []Todo{} // set empty slice without nil
 	for rows.Next() {
 		var todo Todo
 		err := rows.Scan(&todo.ID, &todo.Body, &todo.UpdatedAt, &todo.CreatedAt)
