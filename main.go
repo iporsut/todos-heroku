@@ -59,6 +59,8 @@ func (s *Server) Create(c *gin.Context) {
 		return
 	}
 	now := time.Now()
+	todo.CreatedAt = now
+	todo.UpdatedAt = now
 	row := s.db.QueryRow("INSERT INTO todos (todo, created_at, updated_at) values ($1, $2, $3) RETURNING id", todo.Body, now, now)
 
 	if err := row.Scan(&todo.ID); err != nil {
@@ -68,6 +70,8 @@ func (s *Server) Create(c *gin.Context) {
 		})
 		return
 	}
+
+	c.JSON(http.StatusCreated, todo)
 }
 
 func main() {
