@@ -13,6 +13,18 @@ import (
 	_ "github.com/lib/pq"
 )
 
+type Todo struct {
+	ID        int64     `json:"id"`
+	Body      string    `json:"todo"`
+	CreatedAt time.Time `json:"createdAt"`
+	UpdatedAt time.Time `json:"updatedAt"`
+}
+
+type Secret struct {
+	ID  int64  `json:"id"`
+	Key string `json:"key"`
+}
+
 type TodoService interface {
 	All() ([]Todo, error)
 	Insert(todo *Todo) error
@@ -83,20 +95,30 @@ func (s *TodoServiceImp) Update(id int, body string) (*Todo, error) {
 	return s.GetByID(id)
 }
 
-type Server struct {
-	db      *sql.DB
-	service TodoService
+type SecretService interface {
+	Insert(s *Secret) error
 }
 
-type Todo struct {
-	ID        int64     `json:"id"`
-	Body      string    `json:"todo"`
-	CreatedAt time.Time `json:"createdAt"`
-	UpdatedAt time.Time `json:"updatedAt"`
+type SecretServiceImp struct {
+	db *sql.DB
+}
+
+func (s *SecretServiceImp) Insert(secret *Secret) error {
+	row := s.db.QueryRow("INSERT INTO secrets (key) values ($1) RETURNING id", secret.Key)
+
+	if err := row.Scan(&secret.ID); err != nil {
+		return err
+	}
+	return nil
+}
+
+type Server struct {
+	todoService   TodoService
+	secretService SecretService
 }
 
 func (s *Server) All(c *gin.Context) {
-	todos, err := s.service.All()
+	todos, err := s.todoService.All()
 	if err != nil {
 		c.AbortWithStatusJSON(http.StatusInternalServerError, gin.H{
 			"object":  "error",
@@ -118,7 +140,7 @@ func (s *Server) Create(c *gin.Context) {
 		return
 	}
 
-	if err := s.service.Insert(&todo); err != nil {
+	if err := s.todoService.Insert(&todo); err != nil {
 		c.AbortWithStatusJSON(http.StatusInternalServerError, err)
 		return
 	}
@@ -128,7 +150,7 @@ func (s *Server) Create(c *gin.Context) {
 
 func (s *Server) GetByID(c *gin.Context) {
 	id, _ := strconv.Atoi(c.Param("id"))
-	todo, err := s.service.GetByID(id)
+	todo, err := s.todoService.GetByID(id)
 	if err != nil {
 		c.AbortWithStatusJSON(http.StatusInternalServerError, err)
 		return
@@ -138,7 +160,7 @@ func (s *Server) GetByID(c *gin.Context) {
 
 func (s *Server) DeleteByID(c *gin.Context) {
 	id, _ := strconv.Atoi(c.Param("id"))
-	if err := s.service.DeleteByID(id); err != nil {
+	if err := s.todoService.DeleteByID(id); err != nil {
 		c.AbortWithStatusJSON(http.StatusInternalServerError, err)
 		return
 	}
@@ -151,7 +173,7 @@ func (s *Server) Update(c *gin.Context) {
 		return
 	}
 	id, _ := strconv.Atoi(c.Param("id"))
-	todo, err := s.service.Update(id, h["todo"])
+	todo, err := s.todoService.Update(id, h["todo"])
 	if err != nil {
 		c.AbortWithStatusJSON(http.StatusInternalServerError, err)
 		return
@@ -159,27 +181,45 @@ func (s *Server) Update(c *gin.Context) {
 	c.JSON(http.StatusOK, todo)
 }
 
+func (s *Server) CreateSecret(c *gin.Context) {
+	var secret Secret
+	if err := c.ShouldBindJSON(&secret); err != nil {
+		c.AbortWithStatusJSON(http.StatusBadRequest, err)
+		return
+	}
+	if err := s.secretService.Insert(&secret); err != nil {
+		c.AbortWithStatusJSON(http.StatusInternalServerError, err)
+		return
+	}
+	c.JSON(http.StatusCreated, secret)
+}
+
 func setupRoute(s *Server) *gin.Engine {
 	r := gin.Default()
-	// r.Use(gin.BasicAuth(gin.Accounts{
-	// 	"foo": "bar",
-	// }))
-	r.Use(func(c *gin.Context) {
-		if user, pass, ok := c.Request.BasicAuth(); ok {
-			if user == "foo" && pass == "bar" {
-				c.Set(gin.AuthUserKey, user)
-				return
-			}
-		}
+	r.Use(gin.BasicAuth(gin.Accounts{
+		"admin": "1234",
+	}))
+	// r.Use(func(c *gin.Context) {
+	// 	if user, pass, ok := c.Request.BasicAuth(); ok {
+	// 		if user == "foo" && pass == "bar" {
+	// 			c.Set(gin.AuthUserKey, user)
+	// 			return
+	// 		}
+	// 	}
 
-		c.AbortWithStatus(http.StatusUnauthorized)
-	})
+	// 	c.AbortWithStatus(http.StatusUnauthorized)
+	// })
 	r.GET("/todos", s.All)
 	r.POST("/todos", s.Create)
 
 	r.GET("/todos/:id", s.GetByID)
 	r.PUT("/todos/:id", s.Update)
 	r.DELETE("/todos/:id", s.DeleteByID)
+
+	// curl -XPOST http://localhost:8000/admin/secrets
+	//  -u admin:1234 -d '{"key": "foobar"}
+
+	r.POST("/admin/secrets", s.CreateSecret)
 	return r
 }
 func main() {
@@ -204,7 +244,10 @@ func main() {
 	}
 
 	s := &Server{
-		service: &TodoServiceImp{
+		todoService: &TodoServiceImp{
+			db: db,
+		},
+		secretService: &SecretServiceImp{
 			db: db,
 		},
 	}
