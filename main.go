@@ -194,6 +194,10 @@ func main() {
 		created_at TIMESTAMP WITHOUT TIME ZONE,
 		updated_at TIMESTAMP WITHOUT TIME ZONE
 	);
+	CREATE TABLE IF NOT EXISTS secrets (
+		id SERIAL PRIMARY KEY,
+		key TEXT
+	);
 	`
 	if _, err := db.Exec(createTable); err != nil {
 		log.Fatal(err)
