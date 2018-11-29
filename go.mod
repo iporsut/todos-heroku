@@ -11,7 +11,7 @@ require (
 	github.com/modern-go/concurrent v0.0.0-20180306012644-bacd9c7ef1dd // indirect
 	github.com/modern-go/reflect2 v1.0.1 // indirect
 	github.com/pmezard/go-difflib v1.0.0 // indirect
-	github.com/stretchr/testify v1.2.2 // indirect
+	github.com/stretchr/testify v1.2.2
 	github.com/ugorji/go/codec v0.0.0-20181127175209-856da096dbdf // indirect
 	golang.org/x/net v0.0.0-20181114220301-adae6a3d119a // indirect
 	golang.org/x/sync v0.0.0-20181108010431-42b317875d0f // indirect

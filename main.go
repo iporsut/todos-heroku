@@ -13,8 +13,34 @@ import (
 	_ "github.com/lib/pq"
 )
 
-type Server struct {
+type TodoService interface {
+	All() ([]Todo, error)
+}
+
+type TodoServiceImp struct {
 	db *sql.DB
+}
+
+func (s *TodoServiceImp) All() ([]Todo, error) {
+	rows, err := s.db.Query("SELECT id, todo, updated_at, created_at FROM todos")
+	if err != nil {
+		return nil, err
+	}
+	todos := []Todo{} // set empty slice without nil
+	for rows.Next() {
+		var todo Todo
+		err := rows.Scan(&todo.ID, &todo.Body, &todo.UpdatedAt, &todo.CreatedAt)
+		if err != nil {
+			return nil, err
+		}
+		todos = append(todos, todo)
+	}
+	return todos, nil
+}
+
+type Server struct {
+	db      *sql.DB
+	service TodoService
 }
 
 type Todo struct {
@@ -25,26 +51,13 @@ type Todo struct {
 }
 
 func (s *Server) All(c *gin.Context) {
-	rows, err := s.db.Query("SELECT id, todo, updated_at, created_at FROM todos")
+	todos, err := s.service.All()
 	if err != nil {
 		c.AbortWithStatusJSON(http.StatusInternalServerError, gin.H{
 			"object":  "error",
 			"message": fmt.Sprintf("db: query error: %s", err),
 		})
 		return
-	}
-	todos := []Todo{} // set empty slice without nil
-	for rows.Next() {
-		var todo Todo
-		err := rows.Scan(&todo.ID, &todo.Body, &todo.UpdatedAt, &todo.CreatedAt)
-		if err != nil {
-			c.AbortWithStatusJSON(http.StatusInternalServerError, gin.H{
-				"object":  "error",
-				"message": fmt.Sprintf("db: query error: %s", err),
-			})
-			return
-		}
-		todos = append(todos, todo)
 	}
 	c.JSON(http.StatusOK, todos)
 }
@@ -123,6 +136,16 @@ func (s *Server) Update(c *gin.Context) {
 	c.JSON(http.StatusOK, todo)
 }
 
+func setupRoute(s *Server) *gin.Engine {
+	r := gin.Default()
+	r.GET("/todos", s.All)
+	r.POST("/todos", s.Create)
+
+	r.GET("/todos/:id", s.GetByID)
+	r.PUT("/todos/:id", s.Update)
+	r.DELETE("/todos/:id", s.DeleteByID)
+	return r
+}
 func main() {
 	db, err := sql.Open("postgres", os.Getenv("DATABASE_URL"))
 	if err != nil {
@@ -143,13 +166,8 @@ func main() {
 	s := &Server{
 		db: db,
 	}
-	r := gin.Default()
-	r.GET("/todos", s.All)
-	r.POST("/todos", s.Create)
 
-	r.GET("/todos/:id", s.GetByID)
-	r.PUT("/todos/:id", s.Update)
-	r.DELETE("/todos/:id", s.DeleteByID)
+	r := setupRoute(s)
 
 	r.Run(":" + os.Getenv("PORT"))
 }
