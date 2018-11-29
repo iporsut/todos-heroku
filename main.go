@@ -15,6 +15,10 @@ import (
 
 type TodoService interface {
 	All() ([]Todo, error)
+	Insert(todo *Todo) error
+	GetByID(id int) (*Todo, error)
+	DeleteByID(id int) error
+	Update(id int, body string) (*Todo, error)
 }
 
 type TodoServiceImp struct {
@@ -36,6 +40,47 @@ func (s *TodoServiceImp) All() ([]Todo, error) {
 		todos = append(todos, todo)
 	}
 	return todos, nil
+}
+
+func (s *TodoServiceImp) Insert(todo *Todo) error {
+	now := time.Now()
+	todo.CreatedAt = now
+	todo.UpdatedAt = now
+	row := s.db.QueryRow("INSERT INTO todos (todo, created_at, updated_at) values ($1, $2, $3) RETURNING id", todo.Body, now, now)
+
+	if err := row.Scan(&todo.ID); err != nil {
+		return err
+	}
+	return nil
+}
+
+func (s *TodoServiceImp) GetByID(id int) (*Todo, error) {
+	stmt := "SELECT id, todo, created_at, updated_at FROM todos WHERE id = $1"
+	row := s.db.QueryRow(stmt, id)
+	var todo Todo
+	err := row.Scan(&todo.ID, &todo.Body, &todo.CreatedAt, &todo.UpdatedAt)
+	if err != nil {
+		return nil, err
+	}
+	return &todo, nil
+}
+
+func (s *TodoServiceImp) DeleteByID(id int) error {
+	stmt := "DELETE FROM todos WHERE id = $1"
+	_, err := s.db.Exec(stmt, id)
+	if err != nil {
+		return err
+	}
+	return nil
+}
+
+func (s *TodoServiceImp) Update(id int, body string) (*Todo, error) {
+	stmt := "UPDATE todos SET todo = $2 WHERE id = $1"
+	_, err := s.db.Exec(stmt, id, body)
+	if err != nil {
+		return nil, err
+	}
+	return s.GetByID(id)
 }
 
 type Server struct {
@@ -72,16 +117,9 @@ func (s *Server) Create(c *gin.Context) {
 		})
 		return
 	}
-	now := time.Now()
-	todo.CreatedAt = now
-	todo.UpdatedAt = now
-	row := s.db.QueryRow("INSERT INTO todos (todo, created_at, updated_at) values ($1, $2, $3) RETURNING id", todo.Body, now, now)
 
-	if err := row.Scan(&todo.ID); err != nil {
-		c.AbortWithStatusJSON(http.StatusInternalServerError, gin.H{
-			"object":  "error",
-			"message": fmt.Sprintf("db: query error: %s", err),
-		})
+	if err := s.service.Insert(&todo); err != nil {
+		c.AbortWithStatusJSON(http.StatusInternalServerError, err)
 		return
 	}
 
@@ -89,11 +127,8 @@ func (s *Server) Create(c *gin.Context) {
 }
 
 func (s *Server) GetByID(c *gin.Context) {
-	stmt := "SELECT id, todo, created_at, updated_at FROM todos WHERE id = $1"
 	id, _ := strconv.Atoi(c.Param("id"))
-	row := s.db.QueryRow(stmt, id)
-	var todo Todo
-	err := row.Scan(&todo.ID, &todo.Body, &todo.CreatedAt, &todo.UpdatedAt)
+	todo, err := s.service.GetByID(id)
 	if err != nil {
 		c.AbortWithStatusJSON(http.StatusInternalServerError, err)
 		return
@@ -102,33 +137,21 @@ func (s *Server) GetByID(c *gin.Context) {
 }
 
 func (s *Server) DeleteByID(c *gin.Context) {
-	stmt := "DELETE FROM todos WHERE id = $1"
 	id, _ := strconv.Atoi(c.Param("id"))
-	_, err := s.db.Exec(stmt, id)
-	if err != nil {
+	if err := s.service.DeleteByID(id); err != nil {
 		c.AbortWithStatusJSON(http.StatusInternalServerError, err)
 		return
 	}
 }
 
 func (s *Server) Update(c *gin.Context) {
-	h := gin.H{}
+	h := map[string]string{}
 	if err := c.ShouldBindJSON(&h); err != nil {
 		c.AbortWithStatusJSON(http.StatusBadRequest, err)
 		return
 	}
 	id, _ := strconv.Atoi(c.Param("id"))
-	stmt := "UPDATE todos SET todo = $2 WHERE id = $1"
-	_, err := s.db.Exec(stmt, id, h["todo"])
-	if err != nil {
-		c.AbortWithStatusJSON(http.StatusInternalServerError, err)
-		return
-	}
-
-	stmt = "SELECT id, todo, created_at, updated_at FROM todos WHERE id = $1"
-	row := s.db.QueryRow(stmt, id)
-	var todo Todo
-	err = row.Scan(&todo.ID, &todo.Body, &todo.CreatedAt, &todo.UpdatedAt)
+	todo, err := s.service.Update(id, h["todo"])
 	if err != nil {
 		c.AbortWithStatusJSON(http.StatusInternalServerError, err)
 		return
@@ -164,7 +187,9 @@ func main() {
 	}
 
 	s := &Server{
-		db: db,
+		service: &TodoServiceImp{
+			db: db,
+		},
 	}
 
 	r := setupRoute(s)
