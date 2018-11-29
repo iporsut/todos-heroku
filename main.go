@@ -161,6 +161,9 @@ func (s *Server) Update(c *gin.Context) {
 
 func setupRoute(s *Server) *gin.Engine {
 	r := gin.Default()
+	r.Use(gin.BasicAuth(gin.Accounts{
+		"foo": "bar",
+	}))
 	r.GET("/todos", s.All)
 	r.POST("/todos", s.Create)
 
