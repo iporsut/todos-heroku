@@ -113,6 +113,7 @@ func (s *SecretServiceImp) Insert(secret *Secret) error {
 }
 
 type Server struct {
+	db            *sql.DB
 	todoService   TodoService
 	secretService SecretService
 }
@@ -194,6 +195,10 @@ func (s *Server) CreateSecret(c *gin.Context) {
 	c.JSON(http.StatusCreated, secret)
 }
 
+func (s *Server) AuthTodo(c *gin.Context) {
+
+}
+
 func setupRoute(s *Server) *gin.Engine {
 	r := gin.Default()
 	todos := r.Group("/todos")
@@ -202,6 +207,7 @@ func setupRoute(s *Server) *gin.Engine {
 	admin.Use(gin.BasicAuth(gin.Accounts{
 		"admin": "1234",
 	}))
+	todos.Use(s.AuthTodo)
 	todos.GET("/", s.All)
 	todos.POST("/", s.Create)
 
@@ -233,6 +239,7 @@ func main() {
 	}
 
 	s := &Server{
+		db: db,
 		todoService: &TodoServiceImp{
 			db: db,
 		},
