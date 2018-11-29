@@ -74,6 +74,18 @@ func (s *Server) Create(c *gin.Context) {
 	c.JSON(http.StatusCreated, todo)
 }
 
+func (s *Server) GetByID(c *gin.Context) {
+	stmt := "SELECT id, todo, created_at, updated_at where id=$1"
+	id := c.Param("id")
+	row := s.db.QueryRow(stmt, id)
+	var todo Todo
+	err := row.Scan(&todo.ID, &todo.Body, &todo.CreatedAt, &todo.UpdatedAt)
+	if err != nil {
+		c.AbortWithError(http.StatusInternalServerError, err)
+		return
+	}
+}
+
 func main() {
 	db, err := sql.Open("postgres", os.Getenv("DATABASE_URL"))
 	if err != nil {
@@ -97,6 +109,10 @@ func main() {
 	r := gin.Default()
 	r.GET("/todos", s.All)
 	r.POST("/todos", s.Create)
+
+	r.GET("/todos/:id", s.GetByID)
+	// r.PUT("/todos/:id", s.Update)
+	// r.DELETE("/todos/:id", s.DeleteByID)
 
 	r.Run(":" + os.Getenv("PORT"))
 }
