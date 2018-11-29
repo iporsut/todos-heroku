@@ -76,7 +76,7 @@ func (s *Server) Create(c *gin.Context) {
 }
 
 func (s *Server) GetByID(c *gin.Context) {
-	stmt := "SELECT id, todo, created_at, updated_at where id=$1"
+	stmt := "SELECT id, todo, created_at, updated_at FROM todos WHERE id = $1"
 	id, _ := strconv.Atoi(c.Param("id"))
 	row := s.db.QueryRow(stmt, id)
 	var todo Todo
