@@ -15,14 +15,14 @@ import (
 
 type Todo struct {
 	ID        int64     `json:"id"`
-	Body      string    `json:"todo"`
+	Body      string    `json:"todo" binding:"required"`
 	CreatedAt time.Time `json:"createdAt"`
 	UpdatedAt time.Time `json:"updatedAt"`
 }
 
 type Secret struct {
 	ID  int64  `json:"id"`
-	Key string `json:"key"`
+	Key string `json:"key" binding:"required"`
 }
 
 type TodoService interface {
@@ -196,7 +196,14 @@ func (s *Server) CreateSecret(c *gin.Context) {
 }
 
 func (s *Server) AuthTodo(c *gin.Context) {
-
+	user, _, ok := c.Request.BasicAuth()
+	if ok {
+		row := s.db.QueryRow("SELECT key FROM secrets WHERE key = $1", user)
+		if err := row.Scan(&user); err == nil {
+			return
+		}
+	}
+	c.AbortWithStatus(http.StatusUnauthorized)
 }
 
 func setupRoute(s *Server) *gin.Engine {
