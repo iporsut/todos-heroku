@@ -6,6 +6,7 @@ import (
 	"log"
 	"net/http"
 	"os"
+	"strconv"
 	"time"
 
 	"github.com/gin-gonic/gin"
@@ -76,12 +77,12 @@ func (s *Server) Create(c *gin.Context) {
 
 func (s *Server) GetByID(c *gin.Context) {
 	stmt := "SELECT id, todo, created_at, updated_at where id=$1"
-	id := c.Param("id")
+	id, _ := strconv.Atoi(c.Param("id"))
 	row := s.db.QueryRow(stmt, id)
 	var todo Todo
 	err := row.Scan(&todo.ID, &todo.Body, &todo.CreatedAt, &todo.UpdatedAt)
 	if err != nil {
-		c.AbortWithError(http.StatusInternalServerError, err)
+		c.AbortWithStatusJSON(http.StatusInternalServerError, err)
 		return
 	}
 }
