@@ -85,6 +85,7 @@ func (s *Server) GetByID(c *gin.Context) {
 		c.AbortWithStatusJSON(http.StatusInternalServerError, err)
 		return
 	}
+	c.JSON(http.StatusOK, todo)
 }
 
 func main() {
