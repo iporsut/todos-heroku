@@ -196,30 +196,19 @@ func (s *Server) CreateSecret(c *gin.Context) {
 
 func setupRoute(s *Server) *gin.Engine {
 	r := gin.Default()
-	r.Use(gin.BasicAuth(gin.Accounts{
+	todos := r.Group("/todos")
+	admin := r.Group("/admin")
+
+	admin.Use(gin.BasicAuth(gin.Accounts{
 		"admin": "1234",
 	}))
-	// r.Use(func(c *gin.Context) {
-	// 	if user, pass, ok := c.Request.BasicAuth(); ok {
-	// 		if user == "foo" && pass == "bar" {
-	// 			c.Set(gin.AuthUserKey, user)
-	// 			return
-	// 		}
-	// 	}
+	todos.GET("/", s.All)
+	todos.POST("/", s.Create)
 
-	// 	c.AbortWithStatus(http.StatusUnauthorized)
-	// })
-	r.GET("/todos", s.All)
-	r.POST("/todos", s.Create)
-
-	r.GET("/todos/:id", s.GetByID)
-	r.PUT("/todos/:id", s.Update)
-	r.DELETE("/todos/:id", s.DeleteByID)
-
-	// curl -XPOST http://localhost:8000/admin/secrets
-	//  -u admin:1234 -d '{"key": "foobar"}
-
-	r.POST("/admin/secrets", s.CreateSecret)
+	todos.GET("/:id", s.GetByID)
+	todos.PUT("/:id", s.Update)
+	todos.DELETE("/:id", s.DeleteByID)
+	admin.POST("/secrets", s.CreateSecret)
 	return r
 }
 func main() {
