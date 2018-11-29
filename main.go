@@ -161,9 +161,19 @@ func (s *Server) Update(c *gin.Context) {
 
 func setupRoute(s *Server) *gin.Engine {
 	r := gin.Default()
-	r.Use(gin.BasicAuth(gin.Accounts{
-		"foo": "bar",
-	}))
+	// r.Use(gin.BasicAuth(gin.Accounts{
+	// 	"foo": "bar",
+	// }))
+	r.Use(func(c *gin.Context) {
+		if user, pass, ok := c.Request.BasicAuth(); ok {
+			if user == "foo" && pass == "bar" {
+				c.Set(gin.AuthUserKey, user)
+				return
+			}
+		}
+
+		c.AbortWithStatus(http.StatusUnauthorized)
+	})
 	r.GET("/todos", s.All)
 	r.POST("/todos", s.Create)
 
